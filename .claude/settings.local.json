@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import app\")",
+      "Bash(python -c ':*)",
+      "Bash(python app.py)"
+    ],
+    "additionalDirectories": [
+      "c:\\Pilot Linter\\ppxml_linter_app"
+    ]
+  }
+}
