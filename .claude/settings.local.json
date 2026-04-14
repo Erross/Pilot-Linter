@@ -5,7 +5,9 @@
       "Bash(python -c ':*)",
       "Bash(python app.py)",
       "Bash(python generate_fixtures.py)",
-      "Bash(python verify_fixtures.py)"
+      "Bash(python verify_fixtures.py)",
+      "Bash(python -c \"import tkinterdnd2; print\\('tkinterdnd2', tkinterdnd2.__version__\\)\")",
+      "Bash(pip install:*)"
     ],
     "additionalDirectories": [
       "c:\\Pilot Linter\\ppxml_linter_app"

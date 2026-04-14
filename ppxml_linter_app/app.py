@@ -15,8 +15,18 @@ import ppxml_linter
 from ui.drop_zone import DropZone
 from ui.results_view import ResultsView
 
+# Drag-and-drop support via tkinterdnd2 (GUI-only dependency).
+# If not installed the app still works; Browse is the fallback.
+try:
+    from tkinterdnd2 import TkinterDnD
+    _BASE = TkinterDnD.Tk
+    _DND_AVAILABLE = True
+except ImportError:
+    _BASE = tk.Tk
+    _DND_AVAILABLE = False
 
-class App(tk.Tk):
+
+class App(_BASE):
     def __init__(self):
         super().__init__()
         self.title("Pipeline Pilot PPXML Linter")
@@ -49,7 +59,7 @@ class App(tk.Tk):
         browse_btn.pack(side=tk.RIGHT, padx=10)
 
         # ---- drop zone ----
-        self.drop_zone = DropZone(self, on_file=self._load_file)
+        self.drop_zone = DropZone(self, on_file=self._load_file, dnd_available=_DND_AVAILABLE)
         self.drop_zone.pack(fill=tk.X, padx=16, pady=(12, 0))
 
         # ---- protocol info bar ----
