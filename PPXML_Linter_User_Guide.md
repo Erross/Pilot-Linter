@@ -157,7 +157,7 @@ Intended for automation, pipeline integration, or feeding into other tools. Cont
 | LAYOUT-002 | Warning | Generic components (Custom Manipulator, Custom Filter, Subprotocol) that have not been given a descriptive display name. Checks whether `ComponentDisplayName` is empty for components whose base `name` is a known generic type. |
 | LAYOUT-003 | Info | A component declares a Pass (green) port in its `ComponentAttributes` but no outgoing Pass connection exists in the connection graph. |
 | LAYOUT-004 | Info | A component declares a Fail (red) port but no outgoing Fail connection exists. |
-| LAYOUT-005 | Info | A component receives data (appears as a target in the connection graph) but has no outgoing connections and is not a known terminal type (Cache Writer, Application Log, File Writer, etc.). Data enters but never leaves. |
+| LAYOUT-005 | Info | A component receives data (appears as a target in the connection graph) but has no outgoing connections and is not a known terminal type (Cache Writer, Application Log, File Writer, etc.). Data enters but never leaves. Components that assign global properties (`@Name :=`) in their expressions are exempt — they are treated as legitimate terminals that consume data to populate shared state for later pipeline stages. |
 | LAYOUT-006 | Warning | A component is not connected to any other component at all — it appears in neither the `from` nor `to` side of any connection. |
 | LAYOUT-007 | Info | Sticky notes contain language suggesting incomplete work (TODO, FIXME, "need to", "still need", "not yet implemented"). |
 | LAYOUT-008 | Info | PilotScript expressions contain comments with incomplete-work language. Same patterns as LAYOUT-007 but inside code. |
@@ -284,7 +284,7 @@ The linter uses static analysis and heuristics. It can produce false positives i
 
 - **SCOPE-001 (undeclared globals):** System globals that the linter does not know about will be flagged. The linter maintains an allowlist of common system globals (`@RunId`, `@username`, `@ErrorText`, etc.) but your environment may have additional ones.
 - **PSCRIPT-002 (defensive coding):** The `is defined` check may be in a preceding component or handled by a filter earlier in the pipeline, but the linter only looks within the same expression.
-- **LAYOUT-005 (dead-end components):** Subprotocols that produce output via global properties or web exports rather than via their pass port will appear as dead ends.
+- **LAYOUT-005 (dead-end components):** Components that consume incoming data to assign global properties (`@Name :=`) are intentionally *not* flagged, even if they have no outgoing connections. This is a recognised terminal pattern — the component's output is the populated globals rather than a data stream. Only components with no outgoing connections *and* no global assignments are flagged.
 - **SCOPE-003 (hardcoded cache IDs):** A hardcoded ID is fine if the cache is scoped to "Job Only" and the ID is unique within the job. The linter flags it as a suggestion, not an error.
 
 When reviewing findings, use the evidence and component location to verify whether the finding is genuine before acting on it.

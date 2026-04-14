@@ -9,7 +9,7 @@ exactly one rule, so it can be used as a regression test for the linter.
 - `generate_fixtures.py` — the generator. Run it to produce the fixtures.
 - `verify_fixtures.py` — runs every fixture through the linter and reports
   which rules fired. Use this as a regression test after any linter change.
-- `test_fixtures/` — the 28 generated `.ppxml` files.
+- `test_fixtures/` — the generated `.ppxml` files (28 positive + 1 negative).
 
 ## Running
 
@@ -57,7 +57,7 @@ either the linter or the fixture and needs investigation.
 | LAYOUT-002   | layout_002_unnamed_generic.ppxml                   | Custom Manipulator with empty display name                |
 | LAYOUT-003   | layout_003_unused_pass_port.ppxml                  | Component declares pass port but only fail is connected   |
 | LAYOUT-004   | layout_004_unused_fail_port.ppxml                  | Component declares fail port but only pass is connected   |
-| LAYOUT-005   | layout_005_dead_end_component.ppxml                | Custom Manipulator receives data, sends nothing onward    |
+| LAYOUT-005   | layout_005_dead_end_component.ppxml                | Custom Manipulator receives data, sends nothing onward, assigns no globals |
 | LAYOUT-006   | layout_006_orphaned_component.ppxml                | Component not referenced by any connection                |
 | LAYOUT-007   | layout_007_todo_sticky_note.ppxml                  | Sticky note containing "TODO" / "need to"                 |
 | LAYOUT-008   | layout_008_todo_in_pilotscript.ppxml               | PilotScript comment containing "TODO"                     |
@@ -78,6 +78,28 @@ either the linter or the fixture and needs investigation.
 | INTEG-001    | integ_001_hardcoded_source_path.ppxml              | Excel Reader with a UNC path in `Source`                  |
 | INTEG-002    | integ_002_hardcoded_url.ppxml                      | PilotScript expression with a hardcoded https URL         |
 | SEC-001      | sec_001_embedded_credentials.ppxml                 | HTTP Connector with embedded username + password          |
+
+## Negative fixtures
+
+Negative fixtures confirm that the linter correctly *suppresses* a finding for
+a legitimate pattern. They live in `NEGATIVE_FIXTURES` in `generate_fixtures.py`
+and are verified by a separate pass in `verify_fixtures.py` that asserts the
+target rule does **not** appear in the findings.
+
+| Rule ID    | Fixture                                  | What is being confirmed                                              |
+|------------|------------------------------------------|----------------------------------------------------------------------|
+| LAYOUT-005 | layout_005_globals_terminal_ok.ppxml     | A component that receives data and assigns globals (no outgoing connections) is **not** flagged as a dead end — assigning a global is recognised as a legitimate terminal behaviour. |
+
+### LAYOUT-005 suppression detail
+
+`check_dead_end_components` skips a component if any of its expressions
+contain a non-system global assignment (`@Name :=`). The rationale: the
+component is consuming incoming data to populate shared state (`@ComputedTotal`,
+`@ErrorMessage`, etc.) for later pipeline stages. Even though no data rows flow
+out via a pass or fail port, the component is doing useful work.
+
+The existing `terminal_types` allowlist (Cache Writer, Application Log, etc.)
+is unchanged — this is an additional escape hatch on top of it.
 
 ## Notes on PSCRIPT-002
 

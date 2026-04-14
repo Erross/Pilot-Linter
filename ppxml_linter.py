@@ -540,6 +540,21 @@ def check_unused_ports(parser: PPXMLParser) -> list[Finding]:
     return findings
 
 
+def _assigns_globals(comp) -> bool:
+    """Return True if any expression on this component contains a non-system global assignment.
+
+    A global assignment is @Name := ... where Name is not in SYSTEM_GLOBALS.
+    Components that assign globals are consuming data to populate shared state —
+    a legitimate terminal behaviour — so LAYOUT-005 should not fire for them.
+    """
+    assign_re = re.compile(r'@(\w+)\s*:=')
+    for expr in comp.expressions:
+        for m in assign_re.finditer(expr):
+            if m.group(1) not in SYSTEM_GLOBALS:
+                return True
+    return False
+
+
 def check_dead_end_components(parser: PPXMLParser) -> list[Finding]:
     """Rule 3.2: Check for components that receive data but don't pass it anywhere."""
     findings = []
@@ -559,6 +574,11 @@ def check_dead_end_components(parser: PPXMLParser) -> list[Finding]:
         is_terminal = comp.name in terminal_types or comp.derived_from in terminal_types
 
         if is_target and not is_source and not is_terminal:
+            # Suppress if the component assigns global properties — it is consuming
+            # the data to populate shared state for later pipeline stages, which is
+            # a legitimate terminal pattern even without outgoing connections.
+            if _assigns_globals(comp):
+                continue
             findings.append(Finding(
                 rule_id="LAYOUT-005",
                 severity=Severity.INFO,

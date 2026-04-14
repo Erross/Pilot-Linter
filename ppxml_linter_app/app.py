@@ -6,34 +6,22 @@ Entry point: run with  python app.py  from this directory.
 import sys
 import os
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import filedialog, messagebox
 
 # Allow importing the linter from the parent directory
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import ppxml_linter
 
-from ui.drop_zone import DropZone
 from ui.results_view import ResultsView
 
-# Drag-and-drop support via tkinterdnd2 (GUI-only dependency).
-# If not installed the app still works; Browse is the fallback.
-try:
-    from tkinterdnd2 import TkinterDnD
-    _BASE = TkinterDnD.Tk
-    _DND_AVAILABLE = True
-except ImportError:
-    _BASE = tk.Tk
-    _DND_AVAILABLE = False
 
-
-class App(_BASE):
+class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Pipeline Pilot PPXML Linter")
         self.geometry("900x700")
         self.minsize(640, 480)
         self.configure(bg="#f0f0f0")
-
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -41,26 +29,44 @@ class App(_BASE):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        # ---- top toolbar ----
-        toolbar = tk.Frame(self, bg="#2d2d2d", pady=6)
-        toolbar.pack(fill=tk.X)
+        # ---- header ----
+        header = tk.Frame(self, bg="#2d2d2d")
+        header.pack(fill=tk.X)
+
+        # Title row
+        title_row = tk.Frame(header, bg="#2d2d2d")
+        title_row.pack(fill=tk.X, padx=16, pady=(12, 0))
 
         tk.Label(
-            toolbar, text="PPXML Linter", fg="white", bg="#2d2d2d",
-            font=("Segoe UI", 14, "bold"), padx=12
+            title_row, text="PPXML Linter",
+            fg="white", bg="#2d2d2d",
+            font=("Segoe UI", 14, "bold"),
         ).pack(side=tk.LEFT)
 
-        browse_btn = tk.Button(
-            toolbar, text="Browse…", command=self._browse,
-            bg="#0078d4", fg="white", relief=tk.FLAT,
-            font=("Segoe UI", 10), padx=12, pady=4, cursor="hand2",
-            activebackground="#005a9e", activeforeground="white"
-        )
-        browse_btn.pack(side=tk.RIGHT, padx=10)
+        # Prompt + button row
+        cta_row = tk.Frame(header, bg="#2d2d2d")
+        cta_row.pack(pady=(8, 16))
 
-        # ---- drop zone ----
-        self.drop_zone = DropZone(self, on_file=self._load_file, dnd_available=_DND_AVAILABLE)
-        self.drop_zone.pack(fill=tk.X, padx=16, pady=(12, 0))
+        tk.Label(
+            cta_row,
+            text="Select a .ppxml file to lint",
+            fg="#cccccc", bg="#2d2d2d",
+            font=("Segoe UI", 12),
+        ).pack()
+
+        browse_btn = tk.Button(
+            cta_row,
+            text="Browse for file\u2026",
+            command=self._browse,
+            bg="#0078d4", fg="white",
+            relief=tk.FLAT,
+            font=("Segoe UI", 11, "bold"),
+            padx=24, pady=8,
+            cursor="hand2",
+            activebackground="#005a9e",
+            activeforeground="white",
+        )
+        browse_btn.pack(pady=(6, 0))
 
         # ---- protocol info bar ----
         info_frame = tk.Frame(self, bg="#e8e8e8", relief=tk.SUNKEN, bd=1)
@@ -68,19 +74,19 @@ class App(_BASE):
 
         self.lbl_protocol = tk.Label(
             info_frame, text="No file loaded", anchor="w",
-            bg="#e8e8e8", font=("Segoe UI", 9), fg="#333", padx=8, pady=4
+            bg="#e8e8e8", font=("Segoe UI", 9), fg="#333", padx=8, pady=4,
         )
         self.lbl_protocol.pack(fill=tk.X)
 
         self.lbl_path = tk.Label(
             info_frame, text="", anchor="w",
-            bg="#e8e8e8", font=("Segoe UI", 8), fg="#555", padx=8, pady=2
+            bg="#e8e8e8", font=("Segoe UI", 8), fg="#555", padx=8, pady=2,
         )
         self.lbl_path.pack(fill=tk.X)
 
         self.lbl_stats = tk.Label(
             info_frame, text="", anchor="w",
-            bg="#e8e8e8", font=("Segoe UI", 8), fg="#555", padx=8, pady=2
+            bg="#e8e8e8", font=("Segoe UI", 8), fg="#555", padx=8, pady=2,
         )
         self.lbl_stats.pack(fill=tk.X)
 
@@ -95,7 +101,7 @@ class App(_BASE):
     def _browse(self):
         path = filedialog.askopenfilename(
             title="Select PPXML file",
-            filetypes=[("Pipeline Pilot XML", "*.ppxml"), ("All files", "*.*")]
+            filetypes=[("Pipeline Pilot XML", "*.ppxml"), ("All files", "*.*")],
         )
         if path:
             self._load_file(path)
@@ -112,19 +118,14 @@ class App(_BASE):
             messagebox.showerror("Parse error", f"Failed to parse file:\n{exc}")
             return
 
-        # Update info bar
-        n_comp = len(parser.get_active_components())
-        n_conn = len(parser.connections)
+        n_comp   = len(parser.get_active_components())
+        n_conn   = len(parser.connections)
         errors   = sum(1 for f in findings if f.severity == ppxml_linter.Severity.ERROR)
         warnings = sum(1 for f in findings if f.severity == ppxml_linter.Severity.WARNING)
         infos    = sum(1 for f in findings if f.severity == ppxml_linter.Severity.INFO)
 
-        self.lbl_protocol.config(
-            text=f"Protocol: {parser.protocol_name or '(unnamed)'}"
-        )
-        self.lbl_path.config(
-            text=f"Path: {parser.protocol_path or '(not set)'}"
-        )
+        self.lbl_protocol.config(text=f"Protocol: {parser.protocol_name or '(unnamed)'}")
+        self.lbl_path.config(text=f"Path: {parser.protocol_path or '(not set)'}")
         self.lbl_stats.config(
             text=(
                 f"Components: {n_comp}   Connections: {n_conn}   "
@@ -134,7 +135,6 @@ class App(_BASE):
         )
 
         self.results_view.show(findings)
-        self.drop_zone.set_filename(os.path.basename(filepath))
 
 
 def main():

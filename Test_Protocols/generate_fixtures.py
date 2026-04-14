@@ -207,16 +207,25 @@ def _clean_two_component_chain():
 # ---------------------------------------------------------------------------
 
 FIXTURES = []
+NEGATIVE_FIXTURES = []  # fixtures where the target rule must NOT fire
 
-def fixture(rule_id, filename, description):
-    """Decorator to register a fixture function."""
+def fixture(rule_id, filename, description, negative=False):
+    """Decorator to register a fixture function.
+
+    When negative=True the fixture is added to NEGATIVE_FIXTURES and the
+    verifier asserts that the target rule does *not* appear in the findings.
+    """
     def wrap(fn):
-        FIXTURES.append({
+        entry = {
             "rule_id": rule_id,
             "filename": filename,
             "description": description,
             "builder": fn,
-        })
+        }
+        if negative:
+            NEGATIVE_FIXTURES.append(entry)
+        else:
+            FIXTURES.append(entry)
         return fn
     return wrap
 
@@ -337,6 +346,27 @@ def _layout_005():
         name="LayoutFiveFixture",
         components=[c1, c2],
         connections=[_connection(1, 2)],  # only inbound, no outbound from c2
+    )
+
+
+@fixture("LAYOUT-005", "layout_005_globals_terminal_ok.ppxml",
+         "Terminal component assigning globals — should NOT fire LAYOUT-005.",
+         negative=True)
+def _layout_005_negative():
+    feeder = _component(local_id=1, display_name="Feeder", expression="x := 1;")
+    # This component receives data and assigns a global, but has no outgoing
+    # connections. The linter should recognise it as a legitimate terminal
+    # (consuming data to populate shared state) and suppress LAYOUT-005.
+    terminal = _component(
+        local_id=2, display_name="Compute Global",
+        expression="@ComputedTotal := 42;",
+    )
+    return _protocol(
+        name="LayoutFiveNegativeFixture",
+        # Declare the global so SCOPE-001 does not fire as collateral.
+        declare_global="ComputedTotal",
+        components=[feeder, terminal],
+        connections=[_connection(1, 2)],
     )
 
 
@@ -770,7 +800,7 @@ def _sec_001():
 def generate_all(output_dir):
     os.makedirs(output_dir, exist_ok=True)
     results = []
-    for fx in FIXTURES:
+    for fx in FIXTURES + NEGATIVE_FIXTURES:
         xml = fx["builder"]()
         path = os.path.join(output_dir, fx["filename"])
         with open(path, "w", encoding="utf-8") as f:
@@ -783,5 +813,6 @@ if __name__ == "__main__":
     out = "test_fixtures"
     results = generate_all(out)
     print(f"Generated {len(results)} fixtures in {out}/")
+    print(f"  Positive: {len(FIXTURES)}  Negative: {len(NEGATIVE_FIXTURES)}")
     for rule_id, filename, desc in results:
         print(f"  [{rule_id}] {filename}")

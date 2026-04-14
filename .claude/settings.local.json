@@ -7,7 +7,10 @@
       "Bash(python generate_fixtures.py)",
       "Bash(python verify_fixtures.py)",
       "Bash(python -c \"import tkinterdnd2; print\\('tkinterdnd2', tkinterdnd2.__version__\\)\")",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(python -c \"import tkinterdnd2, os; print\\(os.path.dirname\\(__import__\\('inspect'\\).getfile\\(tkinterdnd2\\)\\)\\)\")",
+      "Read(//c/Users/ewanr/AppData/Local/Programs/Python/Python311/Lib/site-packages/tkinterdnd2/**)",
+      "Bash(start python:*)"
     ],
     "additionalDirectories": [
       "c:\\Pilot Linter\\ppxml_linter_app"
