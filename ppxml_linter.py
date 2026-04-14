@@ -350,25 +350,43 @@ def check_naming_globals(parser: PPXMLParser) -> list[Finding]:
     findings = []
     pascal_re = re.compile(r'^[A-Z][a-zA-Z0-9_]*$')
 
+    # gname -> list of ComponentInfo, deduplicated by local_id, first-seen order
+    usage: dict[str, list] = {}
     for key, comp in parser.get_active_components().items():
         for expr in comp.expressions:
-            # Find @VarName assignments (global writes)
-            for match in re.finditer(r'@(\w+)\s*:?=', expr):
+            # Match any @Global reference (read or write) — not just assignments
+            for match in re.finditer(r'@(\w+)', expr):
                 gname = match.group(1)
                 if gname in SYSTEM_GLOBALS:
                     continue
-                if not pascal_re.match(gname):
-                    findings.append(Finding(
-                        rule_id="NAMING-001",
-                        severity=Severity.WARNING,
-                        category=Category.NAMING,
-                        title=f"Global property @{gname} is not PascalCase",
-                        description=f"Global properties should be written in PascalCase (e.g. @GlobalProperty). Found '@{gname}'.",
-                        component_id=comp.local_id,
-                        component_name=comp.name,
-                        component_display=comp.display_name,
-                        evidence=f"@{gname}"
-                    ))
+                if pascal_re.match(gname):
+                    continue
+                if gname not in usage:
+                    usage[gname] = []
+                if all(c.local_id != comp.local_id for c in usage[gname]):
+                    usage[gname].append(comp)
+
+    for gname, comps in usage.items():
+        first = comps[0]
+        n = len(comps)
+        ids = [c.local_id for c in comps[:10]]
+        id_list = ", ".join(f"ID:{i}" for i in ids)
+        if n > 10:
+            id_list += f" +{n - 10} more"
+        findings.append(Finding(
+            rule_id="NAMING-001",
+            severity=Severity.WARNING,
+            category=Category.NAMING,
+            title=f"Global property @{gname} is not PascalCase",
+            description=(
+                f"Global properties should be written in PascalCase (e.g. @GlobalProperty). "
+                f"Found '@{gname}' ({n} component{'s' if n != 1 else ''}: {id_list})."
+            ),
+            component_id=first.local_id,
+            component_name=first.name,
+            component_display=first.display_name,
+            evidence=f"@{gname} (used in {n} location{'s' if n != 1 else ''})",
+        ))
     return findings
 
 
@@ -379,24 +397,42 @@ def check_naming_locals(parser: PPXMLParser) -> list[Finding]:
     # Very short or single-char loop vars are OK
     skip_re = re.compile(r'^[a-z]$|^#?[ij]$')
 
+    # lname -> list of ComponentInfo, deduplicated by local_id, first-seen order
+    usage: dict[str, list] = {}
     for key, comp in parser.get_active_components().items():
         for expr in comp.expressions:
             for match in re.finditer(r'#(\w+)\s*:?=', expr):
                 lname = match.group(1)
                 if skip_re.match(lname):
                     continue
-                if not camel_re.match(lname):
-                    findings.append(Finding(
-                        rule_id="NAMING-002",
-                        severity=Severity.INFO,
-                        category=Category.NAMING,
-                        title=f"Local property #{lname} is not camelCase",
-                        description=f"Local properties should be written in camelCase (e.g. #localProperty). Found '#{lname}'.",
-                        component_id=comp.local_id,
-                        component_name=comp.name,
-                        component_display=comp.display_name,
-                        evidence=f"#{lname}"
-                    ))
+                if camel_re.match(lname):
+                    continue
+                if lname not in usage:
+                    usage[lname] = []
+                if all(c.local_id != comp.local_id for c in usage[lname]):
+                    usage[lname].append(comp)
+
+    for lname, comps in usage.items():
+        first = comps[0]
+        n = len(comps)
+        ids = [c.local_id for c in comps[:10]]
+        id_list = ", ".join(f"ID:{i}" for i in ids)
+        if n > 10:
+            id_list += f" +{n - 10} more"
+        findings.append(Finding(
+            rule_id="NAMING-002",
+            severity=Severity.INFO,
+            category=Category.NAMING,
+            title=f"Local property #{lname} is not camelCase",
+            description=(
+                f"Local properties should be written in camelCase (e.g. #localProperty). "
+                f"Found '#{lname}' ({n} component{'s' if n != 1 else ''}: {id_list})."
+            ),
+            component_id=first.local_id,
+            component_name=first.name,
+            component_display=first.display_name,
+            evidence=f"#{lname} (used in {n} location{'s' if n != 1 else ''})",
+        ))
     return findings
 
 
@@ -586,27 +622,48 @@ def check_undeclared_globals(parser: PPXMLParser) -> list[Finding]:
                     declared.add(g)
                     declared.add(g + '_Filename')
 
-    # Scan expressions for @Global writes
+    # Scan expressions for any @Global reference (read or write)
+    # gname -> list of ComponentInfo, in first-seen order, deduplicated by local_id
+    usage: dict[str, list] = {}
     for key, comp in parser.get_active_components().items():
         if comp.disabled != 0:
             continue
         for expr in comp.expressions:
-            for match in re.finditer(r'@(\w+)\s*:=', expr):
+            for match in re.finditer(r'@(\w+)', expr):
                 gname = match.group(1)
-                if gname in SYSTEM_GLOBALS:
+                if gname in SYSTEM_GLOBALS or gname in declared:
                     continue
-                if gname not in declared:
-                    findings.append(Finding(
-                        rule_id="SCOPE-001",
-                        severity=Severity.ERROR,
-                        category=Category.SCOPE,
-                        title=f"Undeclared global property @{gname}",
-                        description=f'Global property @{gname} is assigned but not declared in DeclareGlobal or DeclareLocal. Use DeclareLocal on the containing subprotocol to properly scope this variable.',
-                        component_id=comp.local_id,
-                        component_name=comp.name,
-                        component_display=comp.display_name,
-                        evidence=f"@{gname} := ..."
-                    ))
+                if gname not in usage:
+                    usage[gname] = []
+                # Record each component once per global
+                if all(c.local_id != comp.local_id for c in usage[gname]):
+                    usage[gname].append(comp)
+
+    for gname, comps in usage.items():
+        first = comps[0]
+        n = len(comps)
+
+        # Build compact component ID list, capped at 10
+        ids = [c.local_id for c in comps[:10]]
+        id_list = ", ".join(f"ID:{i}" for i in ids)
+        if n > 10:
+            id_list += f" +{n - 10} more"
+
+        findings.append(Finding(
+            rule_id="SCOPE-001",
+            severity=Severity.ERROR,
+            category=Category.SCOPE,
+            title=f"Undeclared global property @{gname}",
+            description=(
+                f"Global property @{gname} is used but not declared in DeclareGlobal or "
+                f"DeclareLocal ({n} component{'s' if n != 1 else ''}: {id_list}). "
+                f"Use DeclareLocal on the containing subprotocol to properly scope this variable."
+            ),
+            component_id=first.local_id,
+            component_name=first.name,
+            component_display=first.display_name,
+            evidence=f"@{gname} (used in {n} location{'s' if n != 1 else ''})",
+        ))
     return findings
 
 
@@ -742,7 +799,7 @@ def check_pilotscript_defensive(parser: PPXMLParser) -> list[Finding]:
     for key, comp in parser.get_active_components().items():
         if comp.disabled != 0:
             continue
-        if comp.name not in ('Custom Filter (PilotScript)',) or comp.derived_from not in ('Custom Filter (PilotScript)',):
+        if comp.derived_from != 'Custom Filter (PilotScript)':
             continue
         for expr in comp.expressions:
             # Check if filter uses a property without checking 'is defined'
