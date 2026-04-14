@@ -1,0 +1,8 @@
+# Generated test fixtures — reproducible via: cd Test_Protocols && python generate_fixtures.py
+Test_Protocols/test_fixtures/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/

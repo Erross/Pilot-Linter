@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python -c \"import app\")",
       "Bash(python -c ':*)",
-      "Bash(python app.py)"
+      "Bash(python app.py)",
+      "Bash(python generate_fixtures.py)",
+      "Bash(python verify_fixtures.py)"
     ],
     "additionalDirectories": [
       "c:\\Pilot Linter\\ppxml_linter_app"
